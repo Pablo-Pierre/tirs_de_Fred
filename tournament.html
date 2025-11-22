@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Stats de Tir Pétanque</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f7f7f7; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 10px; margin: 10px 0; }
+        button { padding: 12px; width: 100%; background: #2c82f4; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; }
+        button:hover { background: #1b5ec4; }
+        h2 { text-align: center; }
+        .stats-box {
+            background: #eef5ff;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 18px;
+        }
+        .stat-line { margin: 8px 0; }
+        .reset-btn {
+            background: #d9534f;
+            margin-top: 10px;
+        }
+        .reset-btn:hover {
+            background: #b52b27;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📈 Progression des tirs</h2>
+
+    <!-- Date -->
+    <label>Date de la séance :</label>
+    <input id="date" type="date">
+
+    <!-- Inputs -->
+    <label>Tirs tentés :</label>
+    <input id="tentes" type="number" placeholder="ex : 20">
+
+    <label>Tirs réussis :</label>
+    <input id="reussis" type="number" placeholder="ex : 12">
+
+    <button onclick="ajouterSeance()">Ajouter la séance</button>
+
+    <!-- Bouton reset -->
+    <button class="reset-btn" onclick="resetStats()">Réinitialiser les stats</button>
+
+    <!-- Stats -->
+    <div class="stats-box">
+        <div class="stat-line"><b>Moyenne du jour :</b> <span id="moyJour">-</span>%</div>
+        <div class="stat-line"><b>Moyenne générale :</b> <span id="moyTotale">-</span>%</div>
+    </div>
+
+    <canvas id="graphique" style="margin-top: 40px;"></canvas>
+</div>
+
+<script>
+    // Charger stats depuis localStorage
+    let donnees = JSON.parse(localStorage.getItem("statsTir")) || [];
+
+    function majMoyennes() {
+        if (donnees.length === 0) {
+            document.getElementById("moyJour").innerText = "-";
+            document.getElementById("moyTotale").innerText = "-";
+            return;
+        }
+
+        const dateChoisie = document.getElementById("date").value;
+
+        // Moyenne totale
+        const totalPercent = donnees.reduce((sum, s) => sum + s.pourcentage, 0);
+        const moyTotale = Math.round(totalPercent / donnees.length);
+        document.getElementById("moyTotale").innerText = moyTotale;
+
+        // Moyenne du jour sélectionné
+        if (dateChoisie) {
+            const seancesDuJour = donnees.filter(s => s.date === dateChoisie);
+            if (seancesDuJour.length > 0) {
+                const moyJour = Math.round(
+                    seancesDuJour.reduce((sum, s) => sum + s.pourcentage, 0) / seancesDuJour.length
+                );
+                document.getElementById("moyJour").innerText = moyJour;
+            } else {
+                document.getElementById("moyJour").innerText = "-";
+            }
+        } else {
+            document.getElementById("moyJour").innerText = "-";
+        }
+    }
+
+    // Création du graphique
+    const ctx = document.getElementById('graphique');
+    let chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: donnees.map(s => s.date),
+            datasets: [{
+                label: "Pourcentage de réussite (%)",
+                data: donnees.map(s => s.pourcentage),
+                borderWidth: 2
+            }]
+        }
+    });
+
+    // Mise à jour des moyennes si on change la date
+    document.getElementById("date").addEventListener("change", majMoyennes);
+
+    function ajouterSeance() {
+        const tentes = parseInt(document.getElementById("tentes").value);
+        const reussis = parseInt(document.getElementById("reussis").value);
+        const dateInput = document.getElementById("date").value;
+
+        if (isNaN(tentes) || isNaN(reussis)) {
+            alert("Remplis les valeurs de tirs !");
+            return;
+        }
+        if (reussis > tentes) {
+            alert("Les tirs réussis ne peuvent pas dépasser les tirs tentés.");
+            return;
+        }
+
+        // Date automatique si rien rempli
+        const today = new Date().toISOString().split("T")[0];
+        const date = dateInput || today;
+
+        const pourcentage = Math.round((reussis / tentes) * 100);
+
+        // Ajouter séance
+        donnees.push({ date, tentes, reussis, pourcentage });
+
+        // Sauvegarde
+        localStorage.setItem("statsTir", JSON.stringify(donnees));
+
+        // Mise à jour du graph
+        chart.data.labels.push(date);
+        chart.data.datasets[0].data.push(pourcentage);
+        chart.update();
+
+        // Réinitialisation
+        document.getElementById("tentes").value = "";
+        document.getElementById("reussis").value = "";
+
+        majMoyennes();
+    }
+
+    // 🔥 Fonction RESET
+    function resetStats() {
+        if (confirm("Voulez-vous vraiment réinitialiser toutes les stats ?")) {
+            localStorage.removeItem("statsTir");
+            donnees = [];
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.update();
+            majMoyennes();
+        }
+    }
+
+    // Calcul initial des moyennes
+    majMoyennes();
+</script>
+
+</body>
+</html>
